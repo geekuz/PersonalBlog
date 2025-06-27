@@ -23,16 +23,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final UserRepository userRepository;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter; // Inject the filter
-
-    public SecurityConfig(UserRepository userRepository, JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.userRepository = userRepository;
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
+    // We no longer need to inject dependencies via the constructor here,
+    // which breaks the circular reference.
 
     @Bean
-    public UserDetailsService userDetailsService() {
+    public UserDetailsService userDetailsService(UserRepository userRepository) {
+        // Injecting UserRepository directly into the bean method is a cleaner pattern.
         return username -> userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
@@ -48,7 +44,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+        // We inject the JwtAuthenticationFilter directly into this method.
+        // Spring can now create it before it's needed here.
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -58,6 +56,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 );
 
+        // Add our custom JWT filter before the standard Spring Security filter
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
